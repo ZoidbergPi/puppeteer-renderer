@@ -7,12 +7,15 @@ class Renderer {
     this.browser = browser
   }
 
-  async createPage(url, options = {}) {
-    const { timeout, waitUntil, credentials, emulateMedia } = options
+  async createPage(url, options) {
+    const { timeout, waitUntil, credentials, emulateMedia, ...extraOptions } = options
     const page = await this.browser.newPage()
     if (emulateMedia) {
       await page.emulateMedia(emulateMedia);
     }
+    if (extraOptions.useragent){
+        await page.setUserAgent(extraOptions.useragent)
+      }
 
     if (credentials) {
       await page.authenticate(credentials)
@@ -29,7 +32,7 @@ class Renderer {
     let page = null
     try {
       const { timeout, waitUntil, credentials } = options
-      page = await this.createPage(url, { timeout, waitUntil, credentials })
+      page = await this.createPage(url, options)
       const html = await page.content()
       return html
     } finally {
@@ -43,7 +46,8 @@ class Renderer {
     let page = null
     try {
       const { timeout, waitUntil, credentials, ...extraOptions } = options
-      page = await this.createPage(url, { timeout, waitUntil, credentials, emulateMedia: 'print' })
+      options.emulateMedia = 'print'
+      page = await this.createPage(url, options)
 
       const { scale = 1.0, displayHeaderFooter, printBackground, landscape } = extraOptions
       const buffer = await page.pdf({
@@ -63,13 +67,15 @@ class Renderer {
 
   async screenshot(url, options = {}) {
     let page = null
+    let html_content = null
     try {
       const { timeout, waitUntil, credentials, ...extraOptions } = options
-      page = await this.createPage(url, { timeout, waitUntil, credentials })
+      page = await this.createPage(url, options)
       page.setViewport({
         width: Number(extraOptions.width || 800),
         height: Number(extraOptions.height || 600),
       })
+
 
       const { fullPage, omitBackground, screenshotType, quality, ...restOptions } = extraOptions
       const buffer = await page.screenshot({
@@ -80,9 +86,13 @@ class Renderer {
         fullPage: fullPage === 'true',
         omitBackground: omitBackground === 'true',
       })
+      html_content = await page.content()
+      const final_url = page.url()
       return {
         screenshotType,
         buffer,
+        html_content,
+        final_url,
       }
     } finally {
       if (page) {

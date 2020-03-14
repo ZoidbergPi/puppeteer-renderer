@@ -5,6 +5,7 @@ const qs = require('qs')
 const { URL } = require('url')
 const contentDisposition = require('content-disposition')
 const createRenderer = require('./renderer')
+const bodyParser =  require("body-parser");
 
 const port = process.env.PORT || 3000
 
@@ -17,10 +18,13 @@ app.set('query parser', s => qs.parse(s, { allowDots: true }))
 app.disable('x-powered-by')
 
 // Render url.
-app.use(async (req, res, next) => {
-  console.log(req.query)
-  let { url, type, filename, ...options } = req.query
-
+app.use(bodyParser.json());
+app.use('/render',async (req, res, next) => {
+  let options=req.body
+  let url = options.url
+  let type = options.type
+  let withhtml = options.withhtml
+  let filename = ""
   if (!url) {
     return res.status(400).send('Search with url parameter. For eaxample, ?url=http://yourdomain')
   }
@@ -56,13 +60,29 @@ app.use(async (req, res, next) => {
         break
 
       case 'screenshot':
-        const { screenshotType, buffer } = await renderer.screenshot(url, options)
-        res
+        let { screenshotType, buffer, html_content,final_url } = await renderer.screenshot(url, options)
+        if (withhtml) {
+          res
+            .set({
+              'Content-Type': `application/json`,
+              'Content-Length': buffer.length + html_content.length,
+            })
+            .send({
+              'image': buffer.toString('base64'),
+              'image-type': screenshotType,
+              'url': final_url,
+              'html': html_content,
+              'msg': 'ok',
+            })
+        }
+        else{
+          res
           .set({
-            'Content-Type': `image/${screenshotType}`,
+            'Content-Type': `image/` + screenshotType,
             'Content-Length': buffer.length,
           })
           .send(buffer)
+        }
         break
 
       default:
